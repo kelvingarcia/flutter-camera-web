@@ -1,11 +1,14 @@
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:convert';
 import 'dart:html';
+import 'dart:js';
 import 'dart:typed_data';
 import 'dart:io' as io;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
+import 'package:webappexample/webclients/treina_webclient.dart';
 
 void main() => runApp(WebcamApp());
 
@@ -26,6 +29,8 @@ class _WebcamPageState extends State<WebcamPage> {
   Widget _webcamWidget;
   // VideoElement
   VideoElement _webcamVideoElement;
+
+  VideoPlayerController _controller = VideoPlayerController.network('');
 
   final ImagePicker picker = ImagePicker();
 
@@ -60,7 +65,13 @@ class _WebcamPageState extends State<WebcamPage> {
                   'Webcam MediaStream:',
                   style: TextStyle(fontSize: 30, fontStyle: FontStyle.italic),
                 ),
-                imagemWidget,
+                // imagemWidget,
+                RaisedButton(
+                  onPressed: () => _webcamVideoElement.srcObject.active
+                      ? _webcamVideoElement.play()
+                      : _webcamVideoElement.pause(),
+                  child: Text('Iniciar câmera'),
+                ),
                 Container(width: 750, height: 750, child: _webcamWidget),
               ],
             ),
@@ -68,27 +79,37 @@ class _WebcamPageState extends State<WebcamPage> {
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () async {
+            List<Blob> listaBlob = List();
             var captureStream = _webcamVideoElement.captureStream();
-            var track = captureStream.getVideoTracks().first;
-            var imageCapture = ImageCapture(track);
-            var imageBlob = await imageCapture.takePhoto();
-            var reader = FileReader();
-            reader.onLoad.listen((e) {
-              _handleData(reader);
+            var mediaRecorder = MediaRecorder(captureStream);
+            mediaRecorder.addEventListener('dataavailable', (event) {
+              print("datavailable ${event.runtimeType}");
+              final Blob blob = JsObject.fromBrowserObject(event)['data'];
+              listaBlob.add(blob);
             });
-            reader.readAsArrayBuffer(imageBlob);
+            mediaRecorder.start(5);
+            Future.delayed(Duration(seconds: 5), () {
+              mediaRecorder.stop();
+              var video = Blob(listaBlob);
+              print("Blob size: ${video.size}");
+              var reader = FileReader();
+              reader.onLoad.listen((e) {
+                _handleData(reader, context);
+              });
+              reader.readAsArrayBuffer(video);
+            });
+            // var track = captureStream.getVideoTracks().first;
+            // var imageCapture = ImageCapture(track);
+            // var imageBlob = await imageCapture.;
           },
           tooltip: 'Start stream, stop stream',
           child: Icon(Icons.camera_alt),
         ),
       );
 
-  void _handleData(FileReader reader) {
-    Uint8List uintlist = new Uint8List.fromList(reader.result);
-    setState(() {
-      imagemWidget = Container(
-        child: Image.memory(uintlist),
-      );
-    });
+  void _handleData(FileReader reader, BuildContext context) {
+    // Uint8List uintlist = new Uint8List.fromList(reader.result);
+    var encode = base64.encode(reader.result);
+    TreinaWebClient.postVideo(encode);
   }
 }

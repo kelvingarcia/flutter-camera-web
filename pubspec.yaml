@@ -24,6 +24,7 @@ dependencies:
   flutter:
     sdk: flutter
   image_picker:
+  video_player:
 
 
   # The following adds the Cupertino Icons font to your application.
